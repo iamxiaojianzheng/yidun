@@ -67,6 +67,7 @@ class yidun_crack(object):
         self.success = 0
         self.type = 2  # 无太大用
         self.retry_times = 3
+        self.version = '2.22.1'
 
     def requests_get(self, url, params=None, headers=None):
         """
@@ -124,7 +125,7 @@ class yidun_crack(object):
                 "fp": r'' + self.fp,
                 "https": "false",
                 "type": self.type,
-                "version": "2.13.2",
+                "version": self.version,
                 "dpr": "1.5",
                 "dev": "3",
                 "cb": r'' + get_cb(),
@@ -174,37 +175,26 @@ class yidun_crack(object):
         """
         识别缺口位置(@link:https://www.jianshu.com/p/f12679a63b8d)
         """
-        img_rgb = cv2.imread(self.bg_img_path)
-        img_gray = cv2.cvtColor(img_rgb, cv2.COLOR_BGR2GRAY)
-        template = cv2.imread(self.front_img_path, 0)
-        res = cv2.matchTemplate(img_gray, template, cv2.TM_CCOEFF_NORMED)
-        # 使用二分法查找阈值的精确值
-        L = 0
-        R = 1
-        start = 0
-        run = 1
-        while run < 20:
-            run += 1
-            threshold = (R + L) / 2
-            # print(threshold)
-            if threshold < 0:
-                print('Error')
-                return None
-            loc = np.where(res >= threshold)
-            # print(len(loc[1]))
-            if len(loc[1]) > 1:
-                L += (R - L) / 2
-            elif len(loc[1]) == 1:
-                start = loc[1][0]
-                print('目标区域起点x坐标为：%d' % start)
-                break
-            elif len(loc[1]) < 1:
-                R -= (R - L) / 2
-        distance = int(start)
+        size = (3, 3)
+        
+        slideBlockMat = cv2.imread(self.front_img_path, 0)
+        slideBlockMat = cv2.GaussianBlur(slideBlockMat, size, 0)
+        slideBlockMat = cv2.Canny(slideBlockMat, 50, 150)
+
+        bgBlockMat = cv2.imread(self.bg_img_path, 0)
+        bgBlockMat = cv2.GaussianBlur(bgBlockMat, size, 0)
+        bgBlockMat = cv2.Canny(bgBlockMat, 50, 150)
+
+        resultMat = cv2.matchTemplate(slideBlockMat, bgBlockMat, cv2.TM_CCOEFF_NORMED)
+        _, _, _, matchLocation = cv2.minMaxLoc(resultMat)
+        # 滑动距离
+        distance = matchLocation[0]
+
         self.draw_line(distance)
         os.remove(self.front_img_path)
         os.remove(self.bg_img_path)
         # 通过跟踪发现，最终的轨迹落点x轴位置会大10px
+        # print(distance + 10)
         return distance + 10
 
     def draw_line(self, x):
@@ -289,7 +279,7 @@ class yidun_crack(object):
             'data': r'' + data,
             'width': '320',
             'type': self.type,
-            'version': '2.13.2',
+            'version': self.version,
             'cb': r'' + get_cb(),
             'extraData': '',
             'runEnv': '10',
@@ -325,7 +315,7 @@ class yidun_crack(object):
         distance = self.tell_location()
         tracedata = self.generate_tracedata(distance)
         print(tracedata)
-        self.draw_tracks(tracedata)
+        # self.draw_tracks(tracedata)
         encrypt_data = encrypt_all_tracedata(yidun.token, tracedata)
         # print(encrypt_data)
         self.verify_yzm(encrypt_data)
